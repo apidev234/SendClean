@@ -1,5 +1,5 @@
 # Description
-- This is a wrapper for the [SendClean API](https://sendclean.com)
+- This is a wrapper for the [SendClean API](https://sendclean.com) 
 - Documentation can be found [here](https://apidev234.github.io/SendClean/docs)
 - Full Typescript Support
 
