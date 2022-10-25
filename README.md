@@ -1,7 +1,8 @@
-# Description
-- This is a wrapper for the [SendClean API](https://sendclean.com)
-- Documentation can be found [here](https://apidev234.github.io/SendClean/docs)
-- Full Typescript Support
+- A strongly typed api wrapper for the [SendClean API](https://sendclean.com).
+
+# Features
+- Uses in-built [https module](https://nodejs.org/api/https.html) to make requests to the SendClean API.
+- Full Typescript support
 
 # Installation
 ```

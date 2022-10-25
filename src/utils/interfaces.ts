@@ -3,9 +3,21 @@ export interface SendCleanOptions {
   token: string;
 }
 
-export interface AddSmtpSuccessResponse {
+export type ValidEvents = 'send' | 'open' | 'click' | 'hard_bounce' | 'soft_bounce' | 'spam';
+
+export interface BaseResponse {
   status: string;
   message: string;
+  code?: number;
+  type?: string;
+}
+
+export interface AddSmtpSuccessResponse extends BaseResponse {
+  smtp_user_name: string;
+  smtp_password: string;
+}
+
+export interface ResetSMTPPasswordResponse extends BaseResponse {
   smtp_user_name: string;
   smtp_password: string;
 }
@@ -17,19 +29,30 @@ export interface ListSmtp {
   status: string;
 }
 
-interface ValiDity {
+export interface ListSmtpResponse extends BaseResponse {
+  smtp_list: ListSmtp[];
+}
+
+interface Validity {
   valid: boolean;
 }
 export interface TrackingDomainList {
   domain: string;
-  cname: ValiDity;
-  create_date: number;
+  cname: Validity;
+  create_date: {
+    microseconds: number;
+    milliseconds: number;
+    seconds: number;
+    minutes: number;
+    hours: number;
+    days: number;
+  };
 }
 
 interface ToUser {
   email: string;
   name?: string;
-  type?: Array<'to' | 'cc' | 'bcc'>;
+  type?: 'to' | 'cc' | 'bcc';
 }
 
 interface MailAttachment {
@@ -80,23 +103,104 @@ export interface SendingDomainList {
     hours: number;
     days: number;
   };
-  dkim: ValiDity;
-  spf: ValiDity;
-  verify_domain: ValiDity;
+  dkim: Validity;
+  spf: Validity;
+  verify_domain: Validity;
 }
 
-export interface checkTrackingDomainResponse {
+export interface ListSendingDomainsResponse extends BaseResponse {
+  sending_domain_list: {
+    domain: string;
+    create_date: number;
+    dkim: Validity;
+    spf: Validity;
+    verify_domain: Validity;
+  }[];
+}
+
+export interface WebhookList {
+  webhook_id: string;
+  url: string;
+  events: ValidEvents[];
+  create_date: {
+    microseconds: number;
+    milliseconds: number;
+    seconds: number;
+    minutes: number;
+    hours: number;
+    days: number;
+  };
+  store_log: boolean;
+  key: string;
+  description: string;
+}
+
+export interface ListWebhooksResponse extends BaseResponse {
+  webhook_list: {
+    webhook_id: string;
+    url: string;
+    event: string;
+    create_date: number;
+    store_log: string;
+    key: string;
+    description: string;
+  }[];
+}
+
+export interface WebhookInfo {
+  webhook_id: string;
+  url: string;
+  events: ValidEvents[];
+  create_date: {
+    microseconds: number;
+    milliseconds: number;
+    seconds: number;
+    minutes: number;
+    hours: number;
+    days: number;
+  };
+  store_log: boolean;
+  key: string;
+  description: string;
+}
+
+export interface WebhookInfoResponse extends BaseResponse {
+  event: any;
+  webhook_data: {
+    webhook_id: string;
+    url: string;
+    event: string;
+    create_date: number;
+    store_log: string;
+    key: string;
+    description: string;
+  };
+}
+
+export interface CheckTrackingDomainResponse extends BaseResponse {
   status: string;
   domain: string;
   valid_tracking: string;
-  cname: ValiDity;
+  cname: Validity;
 }
 
-export interface checkSendingDomainResponse {
+export interface WebhookKeyResponse extends BaseResponse {
+  key: string;
+}
+
+export interface ListTrackingDomainsResponse extends BaseResponse {
+  tracking_domain_list: {
+    domain: string;
+    cname: Validity;
+    create_date: number;
+  }[];
+}
+
+export interface CheckSendingDomainResponse extends BaseResponse {
   status: string;
   domain: string;
-  spf: ValiDity;
-  dkim: ValiDity;
+  spf: Validity;
+  dkim: Validity;
   valid_signing: string;
 }
 
@@ -105,4 +209,31 @@ export interface UpdateSmtpParameters {
   hourly_limit?: number;
   total_limit?: number;
   status?: string;
+}
+
+export interface UserInfo {
+  name?: string;
+  email?: string;
+  mobile?: string;
+  allowed_speed?: number;
+  reputation?: string;
+  create_date: {
+    microseconds: number;
+    milliseconds: number;
+    seconds: number;
+    minutes: number;
+    hours: number;
+    days: number;
+  };
+}
+
+export interface UserInfoResponse extends BaseResponse {
+  user_data: {
+    name?: string;
+    email?: string;
+    mobile?: string;
+    allowed_speed?: number;
+    reputation?: string;
+    create_date: number;
+  };
 }

@@ -1,10 +1,10 @@
 {
   "name": "sendclean",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "./lib/index.js",
   "license": "MIT",
   "author": {
-    "name": "ApiDev234"
+    "name": "Gaurish Sethia"
   },
   "keywords": [
     "sendclean",
@@ -21,8 +21,5 @@
     "prettier-eslint": "^15.0.1",
     "typedoc": "^0.22.17",
     "typescript": "^4.7.2"
-  },
-  "dependencies": {
-    "axios": "^0.27.2"
   }
 }

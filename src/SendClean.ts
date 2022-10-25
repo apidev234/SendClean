@@ -1,25 +1,38 @@
 /**
- * @author ApiDev234
- * @copyright 2022-current ApiDev234
+ * @author Gaurish Sethia
+ * @copyright 2022-current Gaurish Sethia
  */
-import axios, { AxiosResponse } from 'axios';
 import {
   AddSmtpSuccessResponse,
-  checkSendingDomainResponse,
-  checkTrackingDomainResponse,
+  BaseResponse,
+  CheckSendingDomainResponse,
+  CheckTrackingDomainResponse,
+  ListSendingDomainsResponse,
   ListSmtp,
+  ListSmtpResponse,
+  ListTrackingDomainsResponse,
+  ListWebhooksResponse,
+  ResetSMTPPasswordResponse,
   SendCleanOptions,
   SendingDomainList,
   SendMailParameters,
   SendTemplateMailParameters,
   TrackingDomainList,
-  UpdateSmtpParameters
+  UpdateSmtpParameters,
+  UserInfo,
+  UserInfoResponse,
+  ValidEvents,
+  WebhookInfo,
+  WebhookInfoResponse,
+  WebhookKeyResponse,
+  WebhookList
 } from './utils/interfaces';
 import * as Endpoints from './Endpoints';
 import { ValidationError } from './Errors/ValidationError';
 import { GeneralError } from './Errors/GeneralError';
 import { AuthenticationError } from './Errors/AuthenticationError';
 import parse from './utils/parse';
+import { request } from './RequestHandler';
 
 /**
  * @class SendClean
@@ -28,11 +41,14 @@ export class SendClean {
   /**
    * The User's Id For Requests.
    * @private
+   * @type {string}
+   * @memberof SendClean
    */
   private owner_id: string;
   /**
    * The User's API Token For Requests.
    * @private
+   * @type {string}
    */
   private token: string;
   /**
@@ -60,34 +76,32 @@ export class SendClean {
    * @returns {Promise<AddSmtpSuccessResponse>}
    */
   async addSmtpUser(hourly_limit: number, total_limit: number): Promise<AddSmtpSuccessResponse> {
-    if (!hourly_limit || !(typeof hourly_limit !== 'number')) {
+    if (!hourly_limit || typeof hourly_limit !== 'number') {
       throw new TypeError('Field hourly_limit (must be a no.) is required for adding smtp user.');
     }
-    if (!total_limit || !(typeof total_limit !== 'number')) {
+    if (!total_limit || typeof total_limit !== 'number') {
       throw new TypeError('Field total_limit (must be a no.) is required for adding smtp user.');
     }
     return new Promise<AddSmtpSuccessResponse>((resolve, reject) => {
-      axios
-        .post(Endpoints.ADD_SMTP_USER, {
-          token: this.token,
-          owner_id: this.owner_id,
-          hourly_limit,
-          total_limit
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<AddSmtpSuccessResponse>(Endpoints.ADD_SMTP_USER, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        hourly_limit,
+        total_limit
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve(res);
         })
         .catch((err) => {
           reject(err);
@@ -101,37 +115,38 @@ export class SendClean {
    * @async
    * @returns {Promise<any>}
    */
-  async updateSmtpUser(options: UpdateSmtpParameters): Promise<any> {
-    if (!options.smtp_user_name) throw new TypeError('smtp_user_name is required.');
+  async updateSmtpUser(options: UpdateSmtpParameters): Promise<void> {
+    if (!options.smtp_user_name || typeof options.smtp_user_name !== 'string') {
+      throw new TypeError('smtp_user_name is required and must be of type string.');
+    }
     if (
       (options.hourly_limit && isNaN(options.hourly_limit)) ||
       (options.total_limit && isNaN(options.total_limit))
     ) {
       throw new TypeError('Field hourly_limit and total_limit must be a number.');
     }
-    return new Promise((resolve, reject) => {
-      axios
-        .post(Endpoints.UPDATE_SMTP_USER, {
-          token: this.token,
-          owner_id: this.owner_id,
-          smtp_user_name: options.smtp_user_name,
-          hourly_limit: options.hourly_limit,
-          total_limit: options.total_limit
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+    return new Promise<void>((resolve, reject) => {
+      request<BaseResponse>(Endpoints.UPDATE_SMTP_USER, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        ...options
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -142,31 +157,32 @@ export class SendClean {
    * @async
    * @returns {Promise<any>}
    */
-  async resetSmtpPassword(smtp_user_name: string): Promise<any> {
-    if (!smtp_user_name || !(typeof smtp_user_name !== 'string')) {
+  async resetSmtpPassword(smtp_user_name: string): Promise<string> {
+    if (!smtp_user_name || typeof smtp_user_name !== 'string') {
       throw new TypeError('smtp_user_name is required.');
     }
-    return new Promise((resolve, reject) => {
-      axios
-        .post(Endpoints.RESET_SMTP_PASSWORD, {
-          token: this.token,
-          owner_id: this.owner_id,
-          smtp_user_name
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+    return new Promise<string>((resolve, reject) => {
+      request<ResetSMTPPasswordResponse>(Endpoints.RESET_SMTP_PASSWORD, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        smtp_user_name
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve(res.smtp_password);
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -178,25 +194,26 @@ export class SendClean {
    */
   async listSmtpUsers(): Promise<Array<ListSmtp>> {
     return new Promise<Array<ListSmtp>>((resolve, reject) => {
-      axios
-        .post(Endpoints.LIST_SMTP_USERS, {
-          owner_id: this.owner_id,
-          token: this.token
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<ListSmtpResponse>(Endpoints.LIST_SMTP_USERS, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data.smtp_list);
           }
+          resolve(res.smtp_list);
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -208,30 +225,31 @@ export class SendClean {
    * @returns {Promise<void>}
    */
   async addSendingDomain(domain: string): Promise<void> {
-    if (!domain || !(typeof domain !== 'string')) {
-      throw new TypeError('Domain (string) is required.');
+    if (!domain || typeof domain !== 'string') {
+      throw new TypeError('Domain is required and must be of type string.');
     }
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.ADD_SENDING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id,
-          domain
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.ADD_SENDING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        domain
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve();
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -242,31 +260,32 @@ export class SendClean {
    * @async
    * @returns {Promise<checkSendingDomainResponse>}
    */
-  async checkSendingDomain(domain: string): Promise<checkSendingDomainResponse> {
-    if (!domain || !(typeof domain !== 'string')) {
+  async checkSendingDomain(domain: string): Promise<CheckSendingDomainResponse> {
+    if (!domain || typeof domain !== 'string') {
       throw new TypeError('Domain (string) is required.');
     }
-    return new Promise<checkSendingDomainResponse>((resolve, reject) => {
-      axios
-        .post(Endpoints.CHECK_SENDING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id,
-          domain
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+    return new Promise<CheckSendingDomainResponse>((resolve, reject) => {
+      request<CheckSendingDomainResponse>(Endpoints.CHECK_SENDING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        domain
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve(res);
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -277,32 +296,33 @@ export class SendClean {
    * @async
    * @returns {Promise<any>}
    */
-  async verifySendingDomain(domain: string): Promise<any> {
-    if (!domain || !(typeof domain !== 'string')) {
-      throw new TypeError('Domain (string) is required.');
+  async verifySendingDomain(domain: string): Promise<void> {
+    if (!domain || typeof domain !== 'string') {
+      throw new TypeError('Domain is required and must be of type string.');
     }
 
-    return new Promise((resolve, reject) => {
-      axios
-        .post(Endpoints.VERIFY_SENDING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id,
-          domain
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+    return new Promise<void>((resolve, reject) => {
+      request<BaseResponse>(Endpoints.VERIFY_SENDING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        domain
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -314,35 +334,33 @@ export class SendClean {
    */
   async listSendingDomains(): Promise<Array<SendingDomainList>> {
     return new Promise<Array<SendingDomainList>>((resolve, reject) => {
-      axios
-        .post(Endpoints.LIST_SENDING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<ListSendingDomainsResponse>(Endpoints.LIST_SENDING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            let sendingDomains: any = [];
-            res.data.sending_domain_list.forEach((domain: any) => {
-              sendingDomains?.push({
-                domain: domain.domain,
-                create_date: parse(domain.create_date),
-                verified: domain.verify_domain,
-                spf: domain.spf,
-                dkim: domain.dkim
-              });
-            });
-            resolve(sendingDomains);
           }
+          resolve(
+            res.sending_domain_list.map((domain) => {
+              return {
+                ...domain,
+                create_date: parse(domain.create_date)
+              };
+            })
+          );
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -354,30 +372,31 @@ export class SendClean {
    * @returns {Promise<void>}
    */
   async deleteSendingDomain(domain: string): Promise<void> {
-    if (!domain || !(typeof domain !== 'string')) {
-      throw new TypeError('Domain (string) is required.');
+    if (!domain || typeof domain !== 'string') {
+      throw new TypeError('Domain is required and must be of type string.');
     }
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.DELETE_SENDING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id,
-          domain
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.DELETE_SENDING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        domain
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve();
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -389,30 +408,31 @@ export class SendClean {
    * @returns {Promise<void>}
    */
   async addTrackingDomain(domain: string): Promise<void> {
-    if (!domain || !(typeof domain !== 'string')) {
-      throw new TypeError('Domain (string) is required.');
+    if (!domain || typeof domain !== 'string') {
+      throw new TypeError('Domain is required and must be of type string.');
     }
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.ADD_TRACKING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id,
-          domain
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.ADD_TRACKING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        domain
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve();
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -421,33 +441,34 @@ export class SendClean {
    * Check Tracking Domain
    * @param domain
    * @async
-   * @returns {Promise<checkTrackingDomainResponse>}
+   * @returns {Promise<CheckTrackingDomainResponse>}
    */
-  async checkTrackingDomain(domain: string): Promise<checkTrackingDomainResponse> {
-    if (!domain || !(typeof domain !== 'string')) {
-      throw new TypeError('Domain (string) is required.');
+  async checkTrackingDomain(domain: string): Promise<CheckTrackingDomainResponse> {
+    if (!domain || typeof domain !== 'string') {
+      throw new TypeError('Domain is required and must be of type string.');
     }
-    return new Promise<checkTrackingDomainResponse>((resolve, reject) => {
-      axios
-        .post(Endpoints.CHECK_TRACKING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id,
-          domain
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+    return new Promise<CheckTrackingDomainResponse>((resolve, reject) => {
+      request<CheckTrackingDomainResponse>(Endpoints.CHECK_TRACKING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        domain
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve(res);
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -459,32 +480,33 @@ export class SendClean {
    */
   async listTrackingDomains(): Promise<Array<TrackingDomainList>> {
     return new Promise<Array<TrackingDomainList>>((resolve, reject) => {
-      axios
-        .post(Endpoints.LIST_TRACKING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<ListTrackingDomainsResponse>(Endpoints.LIST_TRACKING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            let trackingDomains: any = [];
-            res.data.tracking_domain_list.forEach((domain: any) => {
-              trackingDomains?.push({
-                domain: domain.domain,
-                create_date: parse(domain.create_date)
-              });
-            });
-            resolve(trackingDomains);
           }
+          resolve(
+            res.tracking_domain_list.map((domain) => {
+              return {
+                ...domain,
+                create_date: parse(domain.create_date)
+              };
+            })
+          );
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -495,30 +517,31 @@ export class SendClean {
    * @returns {Promise<void>}
    */
   async deleteTrackingDomain(domain: string): Promise<void> {
-    if (!domain || !(typeof domain !== 'string')) {
-      throw new TypeError('Domain (string) is required.');
+    if (!domain || typeof domain !== 'string') {
+      throw new TypeError('Domain is required and must be of type string.');
     }
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.DELETE_TRACKING_DOMAIN, {
-          token: this.token,
-          owner_id: this.owner_id,
-          domain
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.DELETE_TRACKING_DOMAIN, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        domain
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve();
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -533,46 +556,47 @@ export class SendClean {
    */
   async addWebhook(
     url: string,
-    event?: string,
+    events?: ValidEvents,
     description?: string,
     store_log?: string
   ): Promise<void> {
-    if (!url || !(typeof url !== 'string')) {
+    if (!url || typeof url !== 'string') {
       throw new TypeError('URL (string) is required.');
     }
-    if (event && !(typeof event !== 'string')) {
-      throw new TypeError('Event must be of type string.');
+    if (events && !Array.isArray(events)) {
+      throw new TypeError('Events must be of type array.');
     }
-    if (description && !(typeof description !== 'string')) {
+    if (description && typeof description !== 'string') {
       throw new TypeError('Description must be of type string.');
     }
-    if (store_log && !(typeof store_log !== 'string')) {
+    if (store_log && typeof store_log !== 'string') {
       throw new TypeError('Store Log must be of type string.');
     }
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.ADD_WEBHOOK, {
-          token: this.token,
-          owner_id: this.owner_id,
-          url,
-          event,
-          description,
-          store_log
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.ADD_WEBHOOK, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        url,
+        event: events?.join(','),
+        description,
+        store_log
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve();
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -589,50 +613,51 @@ export class SendClean {
   async editWebhook(
     webhook_id: string,
     url: string,
-    event?: string,
+    events?: ValidEvents,
     description?: string,
     store_log?: string
   ): Promise<void> {
-    if (!webhook_id || !(typeof webhook_id !== 'string')) {
+    if (!webhook_id || typeof webhook_id !== 'string') {
       throw new TypeError('Webhook ID (string) is required.');
     }
-    if (!url || !(typeof url !== 'string')) {
+    if (!url || typeof url !== 'string') {
       throw new TypeError('URL (string) is required.');
     }
-    if (event && !(typeof event !== 'string')) {
-      throw new TypeError('Event must be of type string.');
+    if (events && !Array.isArray(events)) {
+      throw new TypeError('Events must be of type array.');
     }
-    if (description && !(typeof description !== 'string')) {
+    if (description && typeof description !== 'string') {
       throw new TypeError('Description must be of type string.');
     }
-    if (store_log && !(typeof store_log !== 'string')) {
+    if (store_log && typeof store_log !== 'string') {
       throw new TypeError('Store Log must be of type string.');
     }
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.EDIT_WEBHOOK, {
-          token: this.token,
-          owner_id: this.owner_id,
-          webhook_id,
-          url,
-          event,
-          description,
-          store_log
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.EDIT_WEBHOOK, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        webhook_id,
+        url,
+        event: events?.join(','),
+        description,
+        store_log
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve();
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -644,66 +669,66 @@ export class SendClean {
    */
   async keyResetWebhook(webhook_id: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      axios
-        .post(Endpoints.KEY_REST_WEBHOOK, {
-          token: this.token,
-          owner_id: this.owner_id,
-          webhook_id
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<WebhookKeyResponse>(Endpoints.KEY_REST_WEBHOOK, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        webhook_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data.key);
           }
+          resolve(res.key);
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
 
   /**
    * List all webhooks
-   * @returns {Promise<any>}
+   * @returns {Promise<Array<WebhookList>>}
    */
-  async listWebhooks(): Promise<any> {
-    return new Promise<any>((resolve, reject) => {
-      axios
-        .post(Endpoints.LIST_WEBHOOKS, {
-          token: this.token,
-          owner_id: this.owner_id
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+  async listWebhooks(): Promise<Array<WebhookList>> {
+    return new Promise<Array<WebhookList>>((resolve, reject) => {
+      request<ListWebhooksResponse>(Endpoints.LIST_WEBHOOKS, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            let webhooks: any = [];
-            res.data.webhook_list.forEach((webhook: any) => {
-              webhooks?.push({
-                webhook_id: webhook.webhook_id,
-                url: webhook.url,
-                event: webhook.event,
-                description: webhook.description,
-                store_log: webhook.store_log,
-                create_date: parse(webhook.create_date)
-              });
-            });
-            resolve(webhooks);
           }
+          resolve(
+            res.webhook_list.map((webhook) => {
+              return {
+                ...webhook,
+                events: webhook.event.split(',').map((event) => event as ValidEvents),
+                store_log: webhook.store_log == 'Enable' ? true : false,
+                create_date: parse(webhook.create_date)
+              };
+            })
+          );
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -714,26 +739,27 @@ export class SendClean {
    */
   async deleteWebhook(webhook_id: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.DELETE_WEBHOOK, {
-          token: this.token,
-          owner_id: this.owner_id,
-          webhook_id
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.DELETE_WEBHOOK, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        webhook_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve();
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -741,30 +767,36 @@ export class SendClean {
   /**
    * Get Webhook Info
    * @param webhook_id
-   * @returns {Promise<any>}
+   * @returns {Promise<WebhookInfo>}
    */
-  async getWebhookInfo(webhook_id: string): Promise<any> {
-    return new Promise<any>((resolve, reject) => {
-      axios
-        .post(Endpoints.GET_WEBHOOK_INFO, {
-          token: this.token,
-          owner_id: this.owner_id,
-          webhook_id
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+  async getWebhookInfo(webhook_id: string): Promise<WebhookInfo> {
+    return new Promise<WebhookInfo>((resolve, reject) => {
+      request<WebhookInfoResponse>(Endpoints.GET_WEBHOOK_INFO, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        webhook_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data.webhook_data);
           }
+          resolve({
+            ...res.webhook_data,
+            events: res.webhook_data.event.split(',').map((event) => event as ValidEvents),
+            store_log: res.webhook_data.store_log == 'Enable' ? true : false,
+            create_date: parse(res.webhook_data.create_date)
+          });
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -776,27 +808,27 @@ export class SendClean {
    */
   async composeMail(options: SendMailParameters): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.SEND_MAIL, {
-          token: this.token,
-          owner_id: this.owner_id,
-          smtp_user_name: options.smtp_user_name,
-          message: options.message
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.SEND_MAIL, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        ...options
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
@@ -808,55 +840,59 @@ export class SendClean {
    */
   async sendTemplate(options: SendTemplateMailParameters): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      axios
-        .post(Endpoints.SEND_TEMPLATE, {
-          token: this.token,
-          owner_id: this.owner_id,
-          smtp_user_name: options.smtp_user_name,
-          message: options.message
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+      request<BaseResponse>(Endpoints.SEND_TEMPLATE, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id,
+        ...options
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data);
           }
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }
   /**
    * Get User Info
-   * @returns {Promise<any>}
+   * @returns {Promise<UserInfo>}
    */
-  async getUserInfo(): Promise<any> {
-    return new Promise((resolve, reject) => {
-      axios
-        .post(Endpoints.VIEW_USER_DETAIL, {
-          token: this.token,
-          owner_id: this.owner_id
-        })
-        .then((res: AxiosResponse) => {
-          if (res.data.status == 'error') {
-            if (res.data.type == 'ValidationError') {
-              reject(new ValidationError(res.data.message));
+  async getUserInfo(): Promise<UserInfo> {
+    return new Promise<UserInfo>((resolve, reject) => {
+      request<UserInfoResponse>(Endpoints.VIEW_USER_DETAIL, 'POST', {
+        token: this.token,
+        owner_id: this.owner_id
+      })
+        .then((res) => {
+          if (res.status == 'error') {
+            if (res.type == 'ValidationError') {
+              reject(new ValidationError(res.message));
             }
-            if (res.data.type == 'GeneralError') {
-              reject(new GeneralError(res.data.message));
+            if (res.type == 'GeneralError') {
+              reject(new GeneralError(res.message));
             }
-            if (res.data.type == 'AuthenticationError') {
-              reject(new AuthenticationError(res.data.message));
+            if (res.type == 'AuthenticationError') {
+              reject(new AuthenticationError(res.message));
             }
-          } else {
-            resolve(res.data.user_data);
           }
+          resolve({
+            ...res.user_data,
+            create_date: parse(res.user_data.create_date)
+          });
+        })
+        .catch((err) => {
+          reject(err);
         });
     });
   }

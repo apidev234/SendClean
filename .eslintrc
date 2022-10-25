@@ -9,8 +9,7 @@
   "env": {
     "amd": true,
     "es6": true,
-    "node": true,
-    "mocha": true
+    "node": true
   },
   "rules": {
     "comma-dangle": 2,

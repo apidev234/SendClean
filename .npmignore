@@ -1,5 +1,6 @@
 node_modules
 src
+docs
 .prettierrc
 .prettierignore
 tsconfig.json
@@ -8,3 +9,5 @@ yarn.lock
 .eslintignore
 .eslintrc
 .gitignore
+.github
+LICENSE
